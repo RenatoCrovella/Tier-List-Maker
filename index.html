@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tier List Creator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .tier-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tier {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .tier-label {
+      min-width: 60px;
+      padding: 10px;
+      text-align: center;
+      color: #fff;
+      font-weight: bold;
+      border-radius: 5px;
+      margin-right: 10px;
+      word-break: break-word;
+      white-space: normal;
+    }
+    .tier-items {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-height: 50px;
+      border: 1px dashed #555;
+      padding: 10px;
+      flex: 1;
+    }
+    .uncategorized {
+      border: 2px dashed #888;
+      padding: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      min-height: 60px;
+      margin-top: 30px;
+    }
+    .item {
+      width: var(--item-size, 60px);
+      height: var(--item-size, 60px);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: grab;
+    }
+    .item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    input[type="color"], input[type="number"] {
+      width: 40px;
+      height: 40px;
+      border: none;
+      cursor: pointer;
+    }
+    .add-remove-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      background: #333;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #555;
+    }
+    input[type="text"] {
+      padding: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+    .tier-settings {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
+      margin-left: 10px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+  <h1 contenteditable="true">Meu Tier List</h1>
+  <div class="controls">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <button onclick="saveAsImage()">📸 Salvar Tier List como imagem</button>
+    </div>
+    <div>
+      <label for="imageUpload">Adicionar imagem:</label>
+      <input type="file" id="imageUpload" accept="image/*" />
+    </div>
+    <div>
+      <label for="imageURL">ou URL:</label>
+      <input type="text" id="imageURL" placeholder="http://..." />
+      <button onclick="addImageByURL()">Adicionar</button>
+    </div>
+    <div>
+      <label for="imageSize">Tamanho das imagens:</label>
+      <input type="range" id="imageSize" min="40" max="150" value="60" oninput="updateImageSize(this.value)">
+    </div>
+    <div class="add-remove-buttons">
+      <button onclick="addTier()">+ Tier</button>
+      <button onclick="removeTier()">- Tier</button>
+    </div>
+  </div>
+
+  <div class="tier-container" id="tierContainer"></div>
+  <h3>Itens não categorizados</h3>
+  <div class="uncategorized" id="uncategorized" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+
+  <script>
+    let tierCount = 4;
+    const maxTiers = 10;
+    const minTiers = 2;
+
+    const tierContainer = document.getElementById("tierContainer");
+
+    function createTier(index) {
+      const tier = document.createElement("div");
+      tier.className = "tier";
+
+      const color = document.createElement("input");
+      color.type = "color";
+      color.value = getTierColor(index);
+      color.oninput = () => {
+        label.style.backgroundColor = color.value;
+      };
+
+      const textColor = document.createElement("input");
+      textColor.type = "color";
+      textColor.value = "#ffffff";
+      textColor.oninput = () => {
+        label.style.color = textColor.value;
+      };
+
+      const labelSize = document.createElement("input");
+      labelSize.type = "range";
+      labelSize.min = 60;
+      labelSize.max = 300;
+      labelSize.value = 60;
+      labelSize.oninput = () => {
+        label.style.minWidth = labelSize.value + "px";
+      };
+
+      const label = document.createElement("div");
+      label.className = "tier-label";
+      label.contentEditable = true;
+      label.textContent = String.fromCharCode(65 + index);
+      label.style.backgroundColor = color.value;
+
+      const items = document.createElement("div");
+      items.className = "tier-items";
+      items.ondrop = drop;
+      items.ondragover = allowDrop;
+
+      const settings = document.createElement("div");
+      settings.className = "tier-settings";
+      settings.appendChild(color);
+      settings.appendChild(textColor);
+      settings.appendChild(labelSize);
+
+      tier.appendChild(label);
+      tier.appendChild(items);
+      tier.appendChild(settings);
+      return tier;
+    }
+
+    function getTierColor(index) {
+      const defaultColors = ["#FF4D4D", "#FFAA66", "#DDDD66", "#66DD88", "#66CCFF", "#CC66FF"];
+      return defaultColors[index % defaultColors.length];
+    }
+
+    function renderTiers() {
+      const existingItems = Array.from(document.querySelectorAll(".item"));
+      tierContainer.innerHTML = "";
+      for (let i = 0; i < tierCount; i++) {
+        tierContainer.appendChild(createTier(i));
+      }
+      const allTierZones = document.querySelectorAll(".tier-items");
+      const uncategorized = document.getElementById("uncategorized");
+
+      existingItems.forEach((item) => {
+        const id = item.id;
+        item.ondragstart = (ev) => {
+          ev.dataTransfer.setData("text/plain", id);
+        };
+        const parentId = item.parentElement.id;
+        if (parentId === "uncategorized") {
+          uncategorized.appendChild(item);
+        } else {
+          const index = parseInt(item.getAttribute("data-tier-index"));
+          if (!isNaN(index) && allTierZones[index]) {
+            allTierZones[index].appendChild(item);
+          } else {
+            uncategorized.appendChild(item);
+          }
+        }
+      });
+    }
+
+    function allowDrop(ev) {
+      ev.preventDefault();
+    }
+
+    function drag(ev) {
+      ev.dataTransfer.setData("text/plain", ev.target.id);
+    }
+
+    function drop(ev) {
+      ev.preventDefault();
+      const data = ev.dataTransfer.getData("text/plain");
+      const item = document.getElementById(data);
+      let dropZone = ev.target;
+      while (dropZone && !dropZone.classList.contains("tier-items") && dropZone.id !== "uncategorized") {
+        dropZone = dropZone.parentElement;
+      }
+      if (item && dropZone) {
+        dropZone.appendChild(item);
+        const index = Array.from(document.querySelectorAll(".tier-items")).indexOf(dropZone);
+        item.setAttribute("data-tier-index", index >= 0 ? index : -1);
+      }
+    }
+
+    function addImage(fileURL) {
+      const container = document.getElementById("uncategorized");
+      const item = document.createElement("div");
+      item.className = "item";
+      item.draggable = true;
+      const uniqueId = "item-" + crypto.randomUUID();
+      item.id = uniqueId;
+      item.setAttribute("data-tier-index", -1);
+      item.ondragstart = (ev) => {
+        ev.dataTransfer.setData("text/plain", uniqueId);
+      };
+      const img = document.createElement("img");
+      img.src = fileURL;
+      item.appendChild(img);
+      container.appendChild(item);
+    }
+
+    document.getElementById("imageUpload").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          addImage(event.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function addImageByURL() {
+      const url = document.getElementById("imageURL").value;
+      if (url) {
+        addImage(url);
+        document.getElementById("imageURL").value = "";
+      }
+    }
+
+    function addTier() {
+      if (tierCount < maxTiers) {
+        tierCount++;
+        renderTiers();
+      }
+    }
+
+    function removeTier() {
+      if (tierCount > minTiers) {
+        tierCount--;
+        renderTiers();
+      }
+    }
+
+    function saveAsImage() {
+      const title = document.querySelector("h1").textContent.trim() || "tier-list";
+      html2canvas(document.body, {
+        scrollY: -window.scrollY,
+        backgroundColor: "#1a1a1a"
+      }).then((canvas) => {
+        const link = document.createElement("a");
+        link.download = title.replace(/\s+/g, "-").toLowerCase() + ".png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      });
+    }
+
+    function updateImageSize(size) {
+      document.documentElement.style.setProperty('--item-size', size + 'px');
+    }
+
+    renderTiers();
+  </script>
+</body>
+</html>
